@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Moon, Menu, X, ArrowUpRight, LogOut } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { Sun, Moon, Menu, X, ArrowUpRight } from 'lucide-react';
+import { AccountMenu } from './AccountMenu';
 import { motion, useReducedMotion } from 'motion/react';
 import { Logo } from '../brand/Logo';
 import { useTheme } from '../../context/ThemeContext';
@@ -21,7 +21,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentPath = '/',
 }) => {
   const { theme, toggleTheme } = useTheme();
-  const { user, signOut } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const shouldReduceMotion = useReducedMotion();
@@ -129,17 +128,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Zone 3: Primary Actions (Theme Toggle + Athletic Lime CTA) */}
             <div className="flex items-center gap-3 sm:gap-4">
-              {user && (
-                <button
-                  type="button"
-                  onClick={() => void signOut()}
-                  aria-label="Sign out of PADDLE TOP"
-                  title="Sign out"
-                  className="p-2.5 text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white rounded-lg border border-neutral-200 dark:border-white/10 hover:bg-neutral-100 dark:hover:bg-white/5"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              )}
+              <AccountMenu />
 
               {/* Theme Toggle */}
               <button

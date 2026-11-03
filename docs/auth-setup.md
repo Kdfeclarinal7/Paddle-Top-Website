@@ -31,19 +31,22 @@ configured instead of allowing simulated authentication.
    origins, and Google's **Authorized redirect URI**:
    `https://ofznfywgvkwlvxzahezd.supabase.co/auth/v1/callback`
    (the Supabase callback, not the React route). Use ordinary identity scopes.
-3. **Authentication → Providers → Email**: enable email sign-in. This app calls
-   `signInWithOtp` with the default **Magic Link** email, not numeric OTP;
-   no custom template or paid mail service is necessary for Phase 2. Use
-   Supabase's built-in email limits during development. Configure a sending
-   provider only if future production deliverability requires it.
+3. **Google-only UI**: the customer and Owner Desk sign-in screens offer
+   only **Continue with Google**. There is no Magic Link, OTP, password,
+   or alternative provider in this frontend. The email provider is not used;
+   disabling it in the Supabase Dashboard is a separate setting if
+   Google-only sign-in must also be enforced at the Auth service.
 4. After login, the app restores its persisted Supabase browser session and
-   handles OAuth/Magic Link redirects on the same route. A selected booking
+   handles Google OAuth redirects on the same route. A selected booking
    draft is kept in **sessionStorage only for navigation continuity**;
    it is NOT a booking hold or session credential.
+5. A signed-in user sees a compact navbar account control: Google photo
+   (or user icon), display name when provided, email and Sign out.
+   Successful login does not leave a persistent booking status banner.
 
 ## First owner provisioning (manual, no public admin UI)
 
-1. Sign in once through either supported method. Confirm the user exists in
+1. Sign in once through Google. Confirm the user exists in
    Supabase **Authentication → Users**.
 2. Confirm the intended real owner identity and copy its **auth.users.id**.
 3. In the **PADDLE TOP Development project only**, run a trusted SQL Editor
@@ -81,9 +84,9 @@ are introduced.
 - SQL: apply Phase 1 + Phase 2 to a disposable PostgreSQL 17 database
   with mock auth functions, then run both RLS/constraint smoke files.
 - Frontend: `npm ci && npm run lint && npm run build`.
-- Manual after Google/Email dashboard configuration: test sign-in, magic
-  email link, redirect, session restoration, sign-out, non-owner /admin denial,
-  and verified owner /admin access.
+- Manual after Google dashboard configuration: test Google sign-in,
+  redirect, session restoration, account avatar/icon fallback, account menu,
+  sign-out, non-owner /admin denial, and verified owner /admin access.
 
 **Unimplemented:** real availability, holds/expiry, reservation checkout,
 walk-in writes, owner inventory operations, refunds, payment and Edge Functions.

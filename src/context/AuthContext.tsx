@@ -9,7 +9,6 @@ interface AuthContextValue {
   loading: boolean;
   configured: boolean;
   signInWithGoogle: () => Promise<void>;
-  sendMagicLink: (email: string, name?: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -86,18 +85,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: authRedirectUrl() },
-      });
-      if (error) throw error;
-    },
-    async sendMagicLink(email, name) {
-      if (!supabase) throw new Error('Authentication has not been configured.');
-      const trimmedName = name?.trim();
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: {
-          emailRedirectTo: authRedirectUrl(),
-          ...(trimmedName ? { data: { display_name: trimmedName } } : {}),
-        },
       });
       if (error) throw error;
     },

@@ -40,7 +40,7 @@ export const BookingPage: React.FC<BookingPageProps> = ({
   const [selectedCourtId, setSelectedCourtId] = useState<CourtId>(persistedSelection?.courtId ?? initialCourtId);
   const [selectedTimes, setSelectedTimes] = useState<string[]>(persistedSelection?.selectedTimes ?? []);
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
-  const [authNotice, setAuthNotice] = useState<string | null>(null);
+  const [bookingNotice, setBookingNotice] = useState<string | null>(null);
 
   // Data / Async State
   const [schedules, setSchedules] = useState<CourtSchedule[]>([]);
@@ -49,7 +49,7 @@ export const BookingPage: React.FC<BookingPageProps> = ({
 
   const [showAuthGate, setShowAuthGate] = useState<boolean>(false);
 
-  // Avoid resetting a restored OAuth/Magic Link draft on first render.
+  // Avoid resetting a restored OAuth draft on first render.
   useEffect(() => {
     if (!initialCourtApplied.current) {
       initialCourtApplied.current = true;
@@ -64,7 +64,6 @@ export const BookingPage: React.FC<BookingPageProps> = ({
     if (!authLoading && user && readPendingBooking()) {
       clearPendingBooking();
       setShowAuthGate(false);
-      setAuthNotice('You’re signed in and your court selection is preserved. Live bookings are not yet enabled.');
     }
   }, [authLoading, user?.id]);
 
@@ -158,7 +157,7 @@ export const BookingPage: React.FC<BookingPageProps> = ({
   const handleContinue = () => {
     if (!currentDraft || authLoading) return;
     if (user) {
-      setAuthNotice('You’re signed in. Live bookings are not yet enabled; your selected time remains on screen.');
+      setBookingNotice('Online reservations are not available yet.');
       return;
     }
     savePendingBooking({
@@ -205,10 +204,10 @@ export const BookingPage: React.FC<BookingPageProps> = ({
           </div>
         </div>
 
-        {authNotice && (
-          <div role="status" className="rounded-xl border border-lime-200 dark:border-lime-800/40 bg-lime-50 dark:bg-lime-950/20 text-lime-900 dark:text-lime-200 px-4 py-3 text-sm">
-            {authNotice}
-          </div>
+        {bookingNotice && (
+          <p role="status" className="text-xs text-neutral-500 dark:text-neutral-400">
+            {bookingNotice}
+          </p>
         )}
 
             {/* Page Header */}

@@ -17,6 +17,6 @@ export const supabase = url && key
 export const authConfigured = Boolean(supabase);
 
 export function authRedirectUrl(): string {
-  // Reuse the current route so /booking or /admin resumes after OAuth/Magic Link.
+  // Reuse the current route so /booking or /admin resumes after Google OAuth.
   return window.location.origin + window.location.pathname + window.location.search;
 }
