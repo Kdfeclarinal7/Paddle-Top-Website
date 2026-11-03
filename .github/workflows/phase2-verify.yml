@@ -46,7 +46,7 @@ jobs:
           docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
             < supabase/migrations/20261103160000_phase1_foundation.sql
           docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
-            < supabase/migrations/20261104010000_phase2_auth_foundation.sql
+            < supabase/migrations/20261103183842_phase2_auth_foundation.sql
           docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
             < supabase/tests/phase1_assertions.sql
           docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
