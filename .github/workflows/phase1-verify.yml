@@ -30,6 +30,22 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Compile Phase 1 migration in temporary PostgreSQL
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          cat <<'SQL' | docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres
+          create schema auth;
+          create table auth.users (id uuid primary key);
+          create function auth.uid() returns uuid language sql stable as 'select null::uuid';
+          create role anon nologin;
+          create role authenticated nologin;
+          SQL
+          docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
+            < supabase/migrations/20261103160000_phase1_foundation.sql
+          docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
+            < supabase/tests/phase1_assertions.sql
+
       - name: Generate reproducible npm lockfile
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
@@ -53,18 +69,3 @@ jobs:
           npm run lint
           npm run build
 
-      - name: Compile Phase 1 migration in temporary PostgreSQL
-        env:
-          PG_CONTAINER: ${{ job.services.postgres.id }}
-        run: |
-          cat <<'SQL' | docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres
-          create schema auth;
-          create table auth.users (id uuid primary key);
-          create function auth.uid() returns uuid language sql stable as 'select null::uuid';
-          create role anon nologin;
-          create role authenticated nologin;
-          SQL
-          docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
-            < supabase/migrations/20261103160000_phase1_foundation.sql
-          docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
-            < supabase/tests/phase1_assertions.sql
