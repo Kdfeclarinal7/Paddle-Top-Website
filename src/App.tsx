@@ -11,7 +11,8 @@ import { LocationContact } from './components/home/LocationContact';
 import { Footer } from './components/layout/Footer';
 import { BookingPage } from './components/booking/BookingPage';
 import { PaddlesPage } from './components/paddles/PaddlesPage';
-import { AdminLayout } from './components/admin/AdminLayout';
+import { OwnerDeskGate } from './components/admin/OwnerDeskGate';
+import { AuthProvider } from './context/AuthContext';
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState<string>(() => {
@@ -92,9 +93,10 @@ export default function App() {
   const isAdminPage = currentPath === '/admin' || currentPath.startsWith('/admin');
 
   return (
+    <AuthProvider>
     <ThemeProvider>
       {isAdminPage ? (
-        <AdminLayout
+        <OwnerDeskGate
           onNavigateHome={() => navigate('/')}
           onNavigateBooking={() => navigate('/booking')}
           onNavigatePaddles={() => navigate('/paddles')}
@@ -152,5 +154,6 @@ export default function App() {
         </div>
       )}
     </ThemeProvider>
+    </AuthProvider>
   );
 }
