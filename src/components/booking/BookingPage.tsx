@@ -1,19 +1,11 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { CourtId } from '../../types';
-import type {
-  BookingDraft,
-  BookingHold,
-  ConfirmedBooking,
-  CourtSchedule,
-} from '../../types/booking';
+import type { BookingDraft, CourtSchedule } from '../../types/booking';
 import {
   fetchCourtAvailability,
   calculatePrice,
   computeConsecutiveWindow,
   handleHourlySlotToggle,
-  createMockHold,
-  getActiveMockHold,
-  releaseActiveMockHold,
   MOCK_HOURLY_RATE_PHP,
 } from '../../services/bookingService';
 import { getTodayString, addDays } from '../../utils/dateUtils';
@@ -21,10 +13,11 @@ import { DateSelector } from './DateSelector';
 import { DesktopScheduleGrid } from './DesktopScheduleGrid';
 import { MobileBookingFlow } from './MobileBookingFlow';
 import { BookingSummaryCard } from './BookingSummaryCard';
-import { MockAuthGateModal } from './MockAuthGateModal';
-import { MockHoldView } from './MockHoldView';
-import { MockPaymentModal } from './MockPaymentModal';
-import { BookingConfirmationView } from './BookingConfirmationView';
+import { AuthGateModal } from './AuthGateModal';
+import { useAuth } from '../../context/AuthContext';
+import {
+  clearPendingBooking, readPendingBooking, savePendingBooking,
+} from '../../utils/pendingBooking';
 import { BookingLoadingSkeleton } from './BookingLoadingSkeleton';
 import { BookingErrorState, BookingEmptyState } from './BookingErrorState';
 import { ArrowLeft } from 'lucide-react';
@@ -38,39 +31,42 @@ export const BookingPage: React.FC<BookingPageProps> = ({
   initialCourtId = 'court-1',
   onNavigateHome,
 }) => {
-  // Booking Selection State (Hourly-block model)
-  const [selectedDate, setSelectedDate] = useState<string>(getTodayString());
-  const [selectedCourtId, setSelectedCourtId] = useState<CourtId>(initialCourtId);
-  const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
+  const { user, loading: authLoading } = useAuth();
+  const persistedSelection = useMemo(readPendingBooking, []);
+  const initialCourtApplied = useRef(false);
+
+  // The selection is only UX state; no real hold is created during Phase 2.
+  const [selectedDate, setSelectedDate] = useState<string>(persistedSelection?.date ?? getTodayString());
+  const [selectedCourtId, setSelectedCourtId] = useState<CourtId>(persistedSelection?.courtId ?? initialCourtId);
+  const [selectedTimes, setSelectedTimes] = useState<string[]>(persistedSelection?.selectedTimes ?? []);
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
 
   // Data / Async State
   const [schedules, setSchedules] = useState<CourtSchedule[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Workflow Dialog States
   const [showAuthGate, setShowAuthGate] = useState<boolean>(false);
-  const [activeHold, setActiveHold] = useState<BookingHold | null>(null);
-  const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
-  const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBooking | null>(null);
 
-  // Check for any pre-existing active hold on mount (with legacy localStorage compatibility guard)
+  // Avoid resetting a restored OAuth/Magic Link draft on first render.
   useEffect(() => {
-    const existing = getActiveMockHold();
-    if (existing) {
-      setActiveHold(existing);
+    if (!initialCourtApplied.current) {
+      initialCourtApplied.current = true;
+      return;
     }
-  }, []);
-
-  // Update initial court if prop changes (e.g. from Home handoff)
-  useEffect(() => {
-    if (initialCourtId) {
-      setSelectedCourtId(initialCourtId);
-      setSelectedTimes([]);
-      setSelectionNotice(null);
-    }
+    setSelectedCourtId(initialCourtId);
+    setSelectedTimes([]);
+    setSelectionNotice(null);
   }, [initialCourtId]);
+
+  useEffect(() => {
+    if (!authLoading && user && readPendingBooking()) {
+      clearPendingBooking();
+      setShowAuthGate(false);
+      setAuthNotice('You’re signed in and your court selection is preserved. Live bookings are not yet enabled.');
+    }
+  }, [authLoading, user?.id]);
 
   // Load Availability for selectedDate
   const loadAvailability = useCallback(async (opts?: { forceError?: boolean }) => {
@@ -159,25 +155,18 @@ export const BookingPage: React.FC<BookingPageProps> = ({
     setSelectionNotice(null);
   };
 
-  const handleAuthSuccess = (user: { name: string; email: string }) => {
-    if (!currentDraft) return;
-    setShowAuthGate(false);
-    const hold = createMockHold(currentDraft, user.name, user.email);
-    setActiveHold(hold);
-    // Deselect draft slots since session is now locked in an active hold
-    setSelectedTimes([]);
-  };
-
-  const handleReleaseHold = () => {
-    releaseActiveMockHold();
-    setActiveHold(null);
-    loadAvailability();
-  };
-
-  const handlePaymentSuccess = (confirmed: ConfirmedBooking) => {
-    setShowPaymentModal(false);
-    setActiveHold(null);
-    setConfirmedBooking(confirmed);
+  const handleContinue = () => {
+    if (!currentDraft || authLoading) return;
+    if (user) {
+      setAuthNotice('You’re signed in. Live bookings are not yet enabled; your selected time remains on screen.');
+      return;
+    }
+    savePendingBooking({
+      courtId: currentDraft.courtId,
+      date: currentDraft.date,
+      selectedTimes: currentDraft.selectedTimes,
+    });
+    setShowAuthGate(true);
   };
 
   const isAllFullyBooked = useMemo(() => {
@@ -216,27 +205,11 @@ export const BookingPage: React.FC<BookingPageProps> = ({
           </div>
         </div>
 
-        {/* Confirmed Booking View */}
-        {confirmedBooking ? (
-          <BookingConfirmationView
-            booking={confirmedBooking}
-            onBookAnother={() => {
-              setConfirmedBooking(null);
-              setSelectedTimes([]);
-              loadAvailability();
-            }}
-            onReturnHome={onNavigateHome}
-          />
-        ) : (
-          <>
-            {/* Active Hold Banner (if customer has locked a 10-min hold) */}
-            {activeHold && (
-              <MockHoldView
-                hold={activeHold}
-                onProceedToPayment={() => setShowPaymentModal(true)}
-                onReleaseHold={handleReleaseHold}
-              />
-            )}
+        {authNotice && (
+          <div role="status" className="rounded-xl border border-lime-200 dark:border-lime-800/40 bg-lime-50 dark:bg-lime-950/20 text-lime-900 dark:text-lime-200 px-4 py-3 text-sm">
+            {authNotice}
+          </div>
+        )}
 
             {/* Page Header */}
             <div className="space-y-2">
@@ -315,7 +288,7 @@ export const BookingPage: React.FC<BookingPageProps> = ({
                     <div className="hidden lg:block lg:col-span-4 sticky top-28">
                       <BookingSummaryCard
                         draft={currentDraft}
-                        onContinue={() => setShowAuthGate(true)}
+                        onContinue={handleContinue}
                         isLoading={isLoading}
                       />
                     </div>
@@ -325,7 +298,7 @@ export const BookingPage: React.FC<BookingPageProps> = ({
             )}
 
             {/* Mobile Bottom Sticky Bar (Visible when slots are selected on mobile) */}
-            {currentDraft && !activeHold && (
+            {currentDraft && (
               <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0E172A]/95 backdrop-blur-md border-t border-neutral-200 dark:border-white/10 p-4 shadow-xl">
                 <div className="flex items-center justify-between gap-4">
                   <div>
@@ -344,7 +317,7 @@ export const BookingPage: React.FC<BookingPageProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => setShowAuthGate(true)}
+                    onClick={handleContinue}
                     className="py-3 px-5 rounded-xl bg-[#84CC16] hover:bg-[#A3E635] text-[#0A1120] font-bold text-sm shadow-md transition-all active:scale-[0.98] cursor-pointer whitespace-nowrap"
                   >
                     Continue to Reserve
@@ -352,25 +325,12 @@ export const BookingPage: React.FC<BookingPageProps> = ({
                 </div>
               </div>
             )}
-          </>
-        )}
       </div>
 
-      {/* Mock Auth Gate Modal */}
       {showAuthGate && currentDraft && (
-        <MockAuthGateModal
+        <AuthGateModal
           draft={currentDraft}
-          onSuccess={handleAuthSuccess}
           onClose={() => setShowAuthGate(false)}
-        />
-      )}
-
-      {/* Mock Payment Gateway Modal */}
-      {showPaymentModal && activeHold && (
-        <MockPaymentModal
-          hold={activeHold}
-          onPaymentSuccess={handlePaymentSuccess}
-          onClose={() => setShowPaymentModal(false)}
         />
       )}
     </div>
