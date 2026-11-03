@@ -41,6 +41,7 @@ jobs:
           as 'select nullif(current_setting(''request.jwt.claim.sub'', true), '''')::uuid';
           create role anon nologin;
           create role authenticated nologin;
+          grant usage on schema auth to anon, authenticated;
           SQL
           docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
             < supabase/migrations/20261103160000_phase1_foundation.sql
