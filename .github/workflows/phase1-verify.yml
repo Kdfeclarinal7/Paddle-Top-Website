@@ -6,7 +6,7 @@ on:
       - feature/paddle-top-backend-phase-1
 
 permissions:
-  contents: write # Only lockfile generation step uses push capability.
+  contents: read
 
 jobs:
   verify:
@@ -45,23 +45,6 @@ jobs:
             < supabase/migrations/20261103160000_phase1_foundation.sql
           docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
             < supabase/tests/phase1_assertions.sql
-
-      - name: Generate reproducible npm lockfile
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-
-      - name: Commit generated lockfile to backend branch
-        env:
-          PUSH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git add package-lock.json
-          if ! git diff --cached --quiet; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -m "Lock npm dependencies for Phase 1"
-            token_header="$(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 -w 0)"
-            git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${token_header}" \
-              push "https://github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF_NAME}"
-          fi
 
       - name: Verify TypeScript and production build
         run: |
