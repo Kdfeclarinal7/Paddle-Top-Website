@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-display: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Deep Athletic Navy Spectrum (Primary Structural Anchor) */
+  --color-brand-navy-950: #050A14;
+  --color-brand-navy-900: #0A1120;
+  --color-brand-navy-850: #0E172A;
+  --color-brand-navy-800: #14223C;
+  --color-brand-navy-700: #1E2E4E;
+  
+  /* Athletic Lime / Vibrant Green Spectrum (Selective High-Impact Accent) */
+  --color-brand-lime-300: #BEF264;
+  --color-brand-lime-400: #A3E635; /* Hover / Dark-mode vibrant text */
+  --color-brand-lime-500: #84CC16; /* Core Athletic Brand Lime */
+  --color-brand-lime-600: #65A30D; /* Deeper Green */
+  --color-brand-lime-700: #4D7C0F; /* High-contrast accessible text on light backgrounds */
+  --color-brand-lime-800: #3F6212;
+  --color-brand-lime-900: #1A2E05;
+
+  /* Semantic Status Palette */
+  --color-state-held: #F59E0B;
+  --color-state-booked: #64748B;
+  --color-state-success: #10B981;
+  --color-state-error: #EF4444;
+}
+
+:root {
+  color-scheme: light;
+  --bg-canvas: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-surface-subtle: #F1F5F9;
+  --bg-elevated: #FFFFFF;
+  --text-primary: #0A1120;
+  --text-secondary: #475569;
+  --text-muted: #64748B;
+  --border-subtle: #E2E8F0;
+  --border-strong: #CBD5E1;
+
+  /* Brand Accent Tokens (Light Theme) */
+  --brand-accent: #84CC16;
+  --brand-accent-hover: #A3E635;
+  --brand-accent-text: #3F6212; /* Accessible text green (WCAG AA > 4.5:1) */
+  --brand-accent-fg: #0A1120; /* Dark navy text on lime buttons */
+  --brand-accent-soft: rgba(132, 204, 22, 0.12);
+
+  /* Semantic Status Tokens */
+  --status-available-border: #E2E8F0;
+  --status-selected-bg: #84CC16;
+  --status-selected-fg: #0A1120;
+  --status-held-bg: #FEF3C7;
+  --status-held-text: #B45309;
+  --status-booked-bg: #F1F5F9;
+  --status-booked-text: #94A3B8;
+}
+
+.dark {
+  color-scheme: dark;
+  --bg-canvas: #070D18;
+  --bg-surface: #0E172A;
+  --bg-surface-subtle: #0A1120;
+  --bg-elevated: #14223C;
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Brand Accent Tokens (Dark Theme) */
+  --brand-accent: #84CC16;
+  --brand-accent-hover: #A3E635;
+  --brand-accent-text: #A3E635;
+  --brand-accent-fg: #0A1120;
+  --brand-accent-soft: rgba(132, 204, 22, 0.16);
+
+  /* Semantic Status Tokens */
+  --status-available-border: rgba(255, 255, 255, 0.1);
+  --status-selected-bg: #84CC16;
+  --status-selected-fg: #0A1120;
+  --status-held-bg: rgba(245, 158, 11, 0.15);
+  --status-held-text: #FCD34D;
+  --status-booked-bg: rgba(255, 255, 255, 0.05);
+  --status-booked-text: #64748B;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    letter-spacing: -0.011em;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+  }
+
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    letter-spacing: -0.025em;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

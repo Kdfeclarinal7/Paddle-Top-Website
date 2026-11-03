@@ -1,0 +1,6 @@
+{
+  "name": "PADDLE TOP | Premium Pickleball Venue",
+  "description": "PADDLE TOP is a premier 4-court pickleball venue in the Philippines. Reserve Court 1–4 with instant availability and seamless online booking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
