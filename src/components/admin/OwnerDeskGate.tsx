@@ -21,18 +21,19 @@ export const OwnerDeskGate: React.FC<OwnerDeskGateProps> = (props) => {
   const [retry, setRetry] = useState(0);
 
   useEffect(() => {
-    if (!user || !supabase) return;
+    const client = supabase;
+    if (!user || !client) return;
     let current = true;
     const userId = user.id;
     const check = async () => {
       try {
         // Verify the Auth user on the server, then check membership via RLS-safe
         // boolean RPC. This is not the authorization boundary for future writes.
-        const { data: verified, error: verifyError } = await supabase.auth.getUser();
+        const { data: verified, error: verifyError } = await client.auth.getUser();
         if (verifyError || verified.user?.id !== userId) {
           throw new Error('Unable to verify the signed-in user');
         }
-        const { data: isOwner, error } = await supabase.rpc('is_current_user_owner');
+        const { data: isOwner, error } = await client.rpc('is_current_user_owner');
         if (error) throw error;
         if (current) setResult({ userId, status: isOwner === true ? 'owner' : 'not-owner' });
       } catch {
