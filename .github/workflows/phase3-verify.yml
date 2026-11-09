@@ -46,7 +46,7 @@ jobs:
           for f in \
             supabase/migrations/20261103160000_phase1_foundation.sql \
             supabase/migrations/20261103183842_phase2_auth_foundation.sql \
-            supabase/migrations/20261109023000_phase3_booking_holds.sql \
+            supabase/migrations/20261109024407_phase3_booking_holds.sql \
             supabase/tests/phase1_assertions.sql \
             supabase/tests/phase2_auth_assertions.sql \
             supabase/tests/phase3_holds_assertions.sql; do
