@@ -212,7 +212,7 @@ export function calculatePrice(hours: number, hourlyRatePhp: number): number {
   return Math.max(0, hours) * hourlyRatePhp;
 }
 
-export async function createBookingHold(draft: BookingDraft): Promise<LiveBookingHold> {
+export async function createBookingHold(draft: Pick<BookingDraft, 'courtId' | 'date' | 'startTime' | 'endTime'>): Promise<LiveBookingHold> {
   if (!supabase) throw new Error('Online booking is not configured yet.');
   const { data, error } = await supabase.rpc('create_booking_hold', {
     p_court_id: draft.courtId,

@@ -189,7 +189,7 @@ export const DesktopScheduleGrid: React.FC<DesktopScheduleGridProps> = ({
                                 className={`p-2 ${isCourtActive ? 'bg-[#84CC16]/[0.02]' : ''}`}
                               >
                                 <div className="py-2 px-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 text-amber-700 dark:text-amber-400 text-xs flex items-center justify-between cursor-not-allowed select-none">
-                                  <span>Held (10m)</span>
+                                  <span>Held</span>
                                   <Clock className="w-3 h-3 opacity-80" />
                                 </div>
                               </td>

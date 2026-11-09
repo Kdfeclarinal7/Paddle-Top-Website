@@ -146,7 +146,7 @@ export const MobileBookingFlow: React.FC<MobileBookingFlowProps> = ({
               >
                 <div>
                   <div className="text-xs font-mono font-semibold">{slot.displayHourRange}</div>
-                  <span className="text-[10px]">Held (10m temporary hold)</span>
+                  <span className="text-[10px]">Held (temporary hold)</span>
                 </div>
                 <Clock className="w-4 h-4 opacity-80" />
               </div>
