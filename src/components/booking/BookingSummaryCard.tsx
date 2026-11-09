@@ -2,18 +2,19 @@ import React from 'react';
 import type { BookingDraft } from '../../types/booking';
 import { Calendar, Clock, MapPin, ArrowRight } from 'lucide-react';
 import { formatDisplayDate } from '../../utils/dateUtils';
-import { MOCK_HOURLY_RATE_PHP } from '../../services/bookingService';
 
 interface BookingSummaryCardProps {
   draft: BookingDraft | null;
   onContinue: () => void;
   isLoading?: boolean;
+  holdDurationMinutes?: number | null;
 }
 
 export const BookingSummaryCard: React.FC<BookingSummaryCardProps> = ({
   draft,
   onContinue,
   isLoading = false,
+  holdDurationMinutes = null,
 }) => {
   if (!draft) {
     return (
@@ -28,7 +29,7 @@ export const BookingSummaryCard: React.FC<BookingSummaryCardProps> = ({
           </p>
         </div>
         <div className="text-[11px] text-neutral-400 text-center">
-          10-minute hold will lock your court upon sign in
+          Select consecutive hours to request a temporary hold
         </div>
       </div>
     );
@@ -94,7 +95,7 @@ export const BookingSummaryCard: React.FC<BookingSummaryCardProps> = ({
       {/* Pricing Breakdown */}
       <div className="pt-3 border-t border-neutral-100 dark:border-white/5 space-y-2">
         <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
-          <span>{draft.selectedHours} hr × ₱{MOCK_HOURLY_RATE_PHP}/hr</span>
+          <span>{draft.selectedHours} hr × ₱{draft.priceEstimatePhp / draft.selectedHours}/hr</span>
           <span className="font-mono">₱{draft.priceEstimatePhp}</span>
         </div>
         <div className="flex items-baseline justify-between pt-1">
@@ -106,7 +107,7 @@ export const BookingSummaryCard: React.FC<BookingSummaryCardProps> = ({
               ₱{draft.priceEstimatePhp}
             </span>
             <span className="text-[10px] text-neutral-400 block font-mono">
-              Provisional mock rate
+              Venue rate · finalized by server
             </span>
           </div>
         </div>
@@ -124,7 +125,9 @@ export const BookingSummaryCard: React.FC<BookingSummaryCardProps> = ({
       </button>
 
       <div className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center leading-normal">
-        Requires sign-in to create 10-minute hold. No payment is charged until confirmed.
+        Requires sign-in to create a temporary hold. {holdDurationMinutes ? (
+          'Hold duration: ' + holdDurationMinutes + ' minutes. '
+        ) : ''}No payment is taken in this phase.
       </div>
     </div>
   );

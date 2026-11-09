@@ -22,9 +22,9 @@ export const DesktopScheduleGrid: React.FC<DesktopScheduleGridProps> = ({
   notice,
 }) => {
   const periods = [
-    { key: 'morning', label: 'Morning (6:00 AM – 12:00 PM)' },
-    { key: 'afternoon', label: 'Afternoon (12:00 PM – 5:00 PM)' },
-    { key: 'evening', label: 'Evening (5:00 PM – 11:00 PM)' },
+    { key: 'morning', label: 'Morning' },
+    { key: 'afternoon', label: 'Afternoon' },
+    { key: 'evening', label: 'Evening' },
   ];
 
   // Calculate adjacent minutes if there is an active selection
@@ -84,7 +84,7 @@ export const DesktopScheduleGrid: React.FC<DesktopScheduleGridProps> = ({
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-xs bg-amber-500/20 border border-amber-500/40 text-amber-600" />
-            <span>Held (10m)</span>
+            <span>Held</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-xs bg-neutral-200 dark:bg-white/10" />
@@ -133,7 +133,7 @@ export const DesktopScheduleGrid: React.FC<DesktopScheduleGridProps> = ({
                   {/* Period Header Row */}
                   <tr className="bg-neutral-50/70 dark:bg-white/[0.02]">
                     <td
-                      colSpan={5}
+                      colSpan={schedules.length + 1}
                       className="py-2 px-4 text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider bg-neutral-100/50 dark:bg-[#070D18]/50"
                     >
                       {period.label}

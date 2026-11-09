@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { BookingHold, ConfirmedBooking } from '../../types/booking';
-import { createConfirmedMockBooking } from '../../services/bookingService';
+import { createConfirmedMockBooking } from '../../services/legacyMockBookingService';
 import { X, CreditCard, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 
 interface MockPaymentModalProps {

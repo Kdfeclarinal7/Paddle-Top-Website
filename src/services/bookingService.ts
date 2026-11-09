@@ -1,49 +1,6 @@
 import type { CourtId } from '../types';
-import type {
-  CourtSchedule,
-  SlotAvailability,
-  TimeSlotDefinition,
-  BookingDraft,
-  BookingHold,
-  ConfirmedBooking,
-} from '../types/booking';
-
-// Replaceable centralized mock venue configuration
-export const VENUE_CONFIG = {
-  venueName: 'PADDLE TOP',
-  timezone: 'Asia/Manila',
-  openHour: 6,
-  closeHour: 23, // 11:00 PM
-  closeMinutes: 1380, // 23:00 (11:00 PM)
-  mockHourlyRatePhp: 350, // Centralized provisional rate
-};
-
-export const MOCK_HOURLY_RATE_PHP = VENUE_CONFIG.mockHourlyRatePhp;
-
-// Primary operating 1-hour time blocks (6:00 AM to 10:00 PM starts, ending at 11:00 PM)
-export const OPERATING_SLOTS: TimeSlotDefinition[] = [
-  { time: '06:00', displayTime: '6:00 AM', endTime: '07:00', displayEndTime: '7:00 AM', displayHourRange: '6:00 AM – 7:00 AM', period: 'morning', minutesFromMidnight: 360 },
-  { time: '07:00', displayTime: '7:00 AM', endTime: '08:00', displayEndTime: '8:00 AM', displayHourRange: '7:00 AM – 8:00 AM', period: 'morning', minutesFromMidnight: 420 },
-  { time: '08:00', displayTime: '8:00 AM', endTime: '09:00', displayEndTime: '9:00 AM', displayHourRange: '8:00 AM – 9:00 AM', period: 'morning', minutesFromMidnight: 480 },
-  { time: '09:00', displayTime: '9:00 AM', endTime: '10:00', displayEndTime: '10:00 AM', displayHourRange: '9:00 AM – 10:00 AM', period: 'morning', minutesFromMidnight: 540 },
-  { time: '10:00', displayTime: '10:00 AM', endTime: '11:00', displayEndTime: '11:00 AM', displayHourRange: '10:00 AM – 11:00 AM', period: 'morning', minutesFromMidnight: 600 },
-  { time: '11:00', displayTime: '11:00 AM', endTime: '12:00', displayEndTime: '12:00 PM', displayHourRange: '11:00 AM – 12:00 PM', period: 'morning', minutesFromMidnight: 660 },
-  { time: '12:00', displayTime: '12:00 PM', endTime: '13:00', displayEndTime: '1:00 PM', displayHourRange: '12:00 PM – 1:00 PM', period: 'afternoon', minutesFromMidnight: 720 },
-  { time: '13:00', displayTime: '1:00 PM', endTime: '14:00', displayEndTime: '2:00 PM', displayHourRange: '1:00 PM – 2:00 PM', period: 'afternoon', minutesFromMidnight: 780 },
-  { time: '14:00', displayTime: '2:00 PM', endTime: '15:00', displayEndTime: '3:00 PM', displayHourRange: '2:00 PM – 3:00 PM', period: 'afternoon', minutesFromMidnight: 840 },
-  { time: '15:00', displayTime: '3:00 PM', endTime: '16:00', displayEndTime: '4:00 PM', displayHourRange: '3:00 PM – 4:00 PM', period: 'afternoon', minutesFromMidnight: 900 },
-  { time: '16:00', displayTime: '4:00 PM', endTime: '17:00', displayEndTime: '5:00 PM', displayHourRange: '4:00 PM – 5:00 PM', period: 'afternoon', minutesFromMidnight: 960 },
-  { time: '17:00', displayTime: '5:00 PM', endTime: '18:00', displayEndTime: '6:00 PM', displayHourRange: '5:00 PM – 6:00 PM', period: 'evening', minutesFromMidnight: 1020 },
-  { time: '18:00', displayTime: '6:00 PM', endTime: '19:00', displayEndTime: '7:00 PM', displayHourRange: '6:00 AM – 7:00 PM', period: 'evening', minutesFromMidnight: 1080 },
-  { time: '19:00', displayTime: '7:00 PM', endTime: '20:00', displayEndTime: '8:00 PM', displayHourRange: '7:00 PM – 8:00 PM', period: 'evening', minutesFromMidnight: 1140 },
-  { time: '20:00', displayTime: '8:00 PM', endTime: '21:00', displayEndTime: '9:00 PM', displayHourRange: '8:00 PM – 9:00 PM', period: 'evening', minutesFromMidnight: 1200 },
-  { time: '21:00', displayTime: '9:00 PM', endTime: '22:00', displayEndTime: '10:00 PM', displayHourRange: '9:00 PM – 10:00 PM', period: 'evening', minutesFromMidnight: 1260 },
-  { time: '22:00', displayTime: '10:00 PM', endTime: '23:00', displayEndTime: '11:00 PM', displayHourRange: '10:00 PM – 11:00 PM', period: 'evening', minutesFromMidnight: 1320 },
-];
-
-export function calculatePrice(hours: number): number {
-  return Math.max(1, hours) * MOCK_HOURLY_RATE_PHP;
-}
+import type { BookingDraft, CourtSchedule, SlotAvailability, SlotStatus } from '../types/booking';
+import { supabase } from '../lib/supabase';
 
 // Convert minutes from midnight to readable 12-hour format
 export function formatMinutesToTime(minutes: number): string {
@@ -164,183 +121,133 @@ export function handleHourlySlotToggle(
   return { nextTimes: [clickedTime] };
 }
 
-// Deterministic seed generation for realistic mock availability
-function getMockRawStatus(courtId: CourtId, dateStr: string, time: string): 'available' | 'booked' | 'held' {
-  const seedString = `${dateStr}_${courtId}_${time}`;
-  let hash = 0;
-  for (let i = 0; i < seedString.length; i++) {
-    hash = (hash << 5) - hash + seedString.charCodeAt(i);
-    hash |= 0;
-  }
-  const normalized = Math.abs(hash) % 100;
 
-  const hour = parseInt(time.split(':')[0], 10);
-  const isEveningPrime = hour >= 18 && hour <= 20;
-
-  if (isEveningPrime) {
-    if (normalized < 52) return 'booked';
-    if (normalized < 66) return 'held';
-    return 'available';
-  }
-
-  if (normalized < 25) return 'booked';
-  if (normalized < 32) return 'held';
-  return 'available';
+type ServerSlot = { time: string; status: SlotStatus };
+type ServerCourt = { court_id: CourtId; court_name: string; slots: ServerSlot[] };
+interface AvailabilityResponse {
+  configured: boolean;
+  message: string | null;
+  hourly_rate_php: number | string | null;
+  hold_duration_minutes: number | null;
+  courts: ServerCourt[];
 }
 
-export interface GetAvailabilityOptions {
-  date: string; // YYYY-MM-DD
-  simulateDelayMs?: number;
-  forceEmpty?: boolean;
-  forceError?: boolean;
+export interface AvailabilityResult {
+  configured: boolean;
+  message: string | null;
+  hourlyRatePhp: number | null;
+  holdDurationMinutes: number | null;
+  schedules: CourtSchedule[];
 }
 
-export async function fetchCourtAvailability(
-  options: GetAvailabilityOptions
-): Promise<CourtSchedule[]> {
-  const { date, simulateDelayMs = 0, forceEmpty = false, forceError = false } = options;
+export interface LiveBookingHold {
+  id: string;
+  court_id: CourtId;
+  court_name: string;
+  starts_at: string;
+  ends_at: string;
+  hourly_rate_php: number;
+  total_price_php: number;
+  created_at: string;
+  expires_at: string;
+  status: 'active';
+}
 
-  if (simulateDelayMs > 0) {
-    await new Promise((resolve) => setTimeout(resolve, simulateDelayMs));
+// No mock availability fallback. The database alone defines times and prices.
+export async function fetchCourtAvailability(date: string): Promise<AvailabilityResult> {
+  if (!supabase) {
+    return {
+      configured: false, message: 'Online booking is not configured yet.',
+      hourlyRatePhp: null, holdDurationMinutes: null, schedules: [],
+    };
+  }
+  const { data, error } = await supabase.rpc('get_court_availability', { p_date: date });
+  if (error) throw new Error(error.message);
+  const response = data as AvailabilityResponse;
+  if (!response?.configured) {
+    return {
+      configured: false, message: response?.message ?? 'Online booking is not configured yet.',
+      hourlyRatePhp: null, holdDurationMinutes: null, schedules: [],
+    };
   }
 
-  if (forceError) {
-    throw new Error('Unable to retrieve court availability. Please try again.');
+  const rate = Number(response.hourly_rate_php);
+  if (!Number.isFinite(rate) || rate < 0) {
+    throw new Error('Invalid hourly rate from venue settings.');
   }
 
-  const courts: { id: CourtId; name: string }[] = [
-    { id: 'court-1', name: 'Court 1' },
-    { id: 'court-2', name: 'Court 2' },
-    { id: 'court-3', name: 'Court 3' },
-    { id: 'court-4', name: 'Court 4' },
-  ];
-
-  if (forceEmpty) {
-    return courts.map((c) => ({
-      courtId: c.id,
-      courtName: c.name,
-      slots: OPERATING_SLOTS.map((s) => ({
-        time: s.time,
-        displayTime: s.displayTime,
-        endTime: s.endTime,
-        displayEndTime: s.displayEndTime,
-        displayHourRange: s.displayHourRange,
-        status: 'booked' as const,
-        period: s.period,
-        minutesFromMidnight: s.minutesFromMidnight,
-      })),
-    }));
-  }
-
-  return courts.map((court) => {
-    const slots: SlotAvailability[] = OPERATING_SLOTS.map((slot) => {
-      const rawStatus = getMockRawStatus(court.id, date, slot.time);
-
+  const schedules: CourtSchedule[] = (response.courts ?? []).map((court) => ({
+    courtId: court.court_id,
+    courtName: court.court_name,
+    slots: court.slots.map((slot): SlotAvailability => {
+      const minutes = parseTimeToMinutes(slot.time);
+      const endMinutes = minutes + 60;
+      const endHour = Math.floor(endMinutes / 60);
+      const endTime = String(endHour).padStart(2, '0') + ':00';
+      const displayTime = formatMinutesToTime(minutes);
+      const displayEndTime = formatMinutesToTime(endMinutes);
       return {
         time: slot.time,
-        displayTime: slot.displayTime,
-        endTime: slot.endTime,
-        displayEndTime: slot.displayEndTime,
-        displayHourRange: slot.displayHourRange,
-        status: rawStatus,
-        period: slot.period,
-        minutesFromMidnight: slot.minutesFromMidnight,
+        displayTime,
+        endTime,
+        displayEndTime,
+        displayHourRange: displayTime + ' – ' + displayEndTime,
+        status: ['available','booked','held','past'].includes(slot.status) ? slot.status : 'booked',
+        period: minutes < 720 ? 'morning' : minutes < 1020 ? 'afternoon' : 'evening',
+        minutesFromMidnight: minutes,
       };
-    });
+    }),
+  }));
 
-    return {
-      courtId: court.id,
-      courtName: court.name,
-      slots,
-    };
+  return {
+    configured: true,
+    message: null,
+    hourlyRatePhp: rate,
+    holdDurationMinutes: response.hold_duration_minutes,
+    schedules,
+  };
+}
+
+export function calculatePrice(hours: number, hourlyRatePhp: number): number {
+  return Math.max(0, hours) * hourlyRatePhp;
+}
+
+export async function createBookingHold(draft: BookingDraft): Promise<LiveBookingHold> {
+  if (!supabase) throw new Error('Online booking is not configured yet.');
+  const { data, error } = await supabase.rpc('create_booking_hold', {
+    p_court_id: draft.courtId,
+    p_date: draft.date,
+    p_start_time: draft.startTime,
+    p_end_time: draft.endTime,
   });
+  if (error) throw new Error(error.message);
+  if (!data || data.status !== 'active') throw new Error('Hold was not created.');
+  return {
+    ...data,
+    hourly_rate_php: Number(data.hourly_rate_php),
+    total_price_php: Number(data.total_price_php),
+  } as LiveBookingHold;
 }
 
-// LocalStorage helpers for mock holds and reservations
-const ACTIVE_HOLD_KEY = 'paddle_top_active_hold_v2';
-const CONFIRMED_BOOKINGS_KEY = 'paddle_top_confirmed_bookings_v2';
-
-export function createMockHold(draft: BookingDraft, userName?: string, userEmail?: string): BookingHold {
-  const hold: BookingHold = {
-    holdId: `HOLD-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-    draft,
-    createdAt: Date.now(),
-    expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes from now
-    userName: userName || 'Player',
-    userEmail: userEmail || 'player@example.com',
-  };
-
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(ACTIVE_HOLD_KEY, JSON.stringify(hold));
-  }
-  return hold;
+export async function getActiveBookingHold(
+  holdId?: string,
+): Promise<LiveBookingHold | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc('get_active_booking_hold', {
+    p_hold_id: holdId ?? null,
+  });
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return {
+    ...data,
+    hourly_rate_php: Number(data.hourly_rate_php),
+    total_price_php: Number(data.total_price_php),
+  } as LiveBookingHold;
 }
 
-export function getActiveMockHold(): BookingHold | null {
-  if (typeof window === 'undefined') return null;
-  const raw = localStorage.getItem(ACTIVE_HOLD_KEY);
-  if (!raw) return null;
-
-  try {
-    const hold: any = JSON.parse(raw);
-    
-    // Legacy localStorage safety guard:
-    // If the persisted hold has old duration schema without selectedHours or selectedTimes,
-    // safely clear it and return null to prevent application crash
-    if (!hold || !hold.draft || !hold.expiresAt) {
-      localStorage.removeItem(ACTIVE_HOLD_KEY);
-      return null;
-    }
-
-    if (!hold.draft.selectedHours || !Array.isArray(hold.draft.selectedTimes) || hold.draft.selectedTimes.length === 0) {
-      // Legacy duration-based structure detected: safely clear it
-      localStorage.removeItem(ACTIVE_HOLD_KEY);
-      return null;
-    }
-
-    if (Date.now() > hold.expiresAt) {
-      localStorage.removeItem(ACTIVE_HOLD_KEY);
-      return null;
-    }
-    return hold as BookingHold;
-  } catch {
-    localStorage.removeItem(ACTIVE_HOLD_KEY);
-    return null;
-  }
-}
-
-export function releaseActiveMockHold(): void {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(ACTIVE_HOLD_KEY);
-  }
-}
-
-export function createConfirmedMockBooking(
-  hold: BookingHold,
-  paymentMethod: string
-): ConfirmedBooking {
-  const randomRef = `PT-${Math.floor(10000 + Math.random() * 90000)}`;
-  const confirmed: ConfirmedBooking = {
-    referenceCode: randomRef,
-    draft: hold.draft,
-    confirmedAt: Date.now(),
-    customerName: hold.userName || 'Player',
-    customerEmail: hold.userEmail || 'player@example.com',
-    paymentMethod,
-    paymentStatus: 'paid',
-    bookingStatus: 'confirmed',
-  };
-
-  if (typeof window !== 'undefined') {
-    releaseActiveMockHold();
-    try {
-      const existing = JSON.parse(localStorage.getItem(CONFIRMED_BOOKINGS_KEY) || '[]');
-      existing.unshift(confirmed);
-      localStorage.setItem(CONFIRMED_BOOKINGS_KEY, JSON.stringify(existing));
-    } catch {
-      // ignore
-    }
-  }
-
-  return confirmed;
+export async function releaseBookingHold(holdId: string): Promise<'released' | 'expired' | 'not_found'> {
+  if (!supabase) throw new Error('Online booking is not configured yet.');
+  const { data, error } = await supabase.rpc('release_booking_hold', { p_hold_id: holdId });
+  if (error) throw new Error(error.message);
+  return data?.status as 'released' | 'expired' | 'not_found';
 }

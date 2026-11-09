@@ -1,11 +1,12 @@
 // Date utilities for PADDLE TOP booking flow
 
 export function getTodayString(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  // Venue-local date regardless of the customer's device timezone.
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
+  return value('year') + '-' + value('month') + '-' + value('day');
 }
 
 export function parseDate(dateStr: string): Date {
