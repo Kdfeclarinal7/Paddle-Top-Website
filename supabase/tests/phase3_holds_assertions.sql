@@ -80,8 +80,6 @@ begin
   if (v_hold->>'total_price_php')::numeric <> 975.00
      or (v_hold->>'hourly_rate_php')::numeric <> 487.50 then
     raise exception 'Price is not derived from authoritative venue settings'; end if;
-  if (select count(*) from public.court_slot_claims where hold_id=v_id) <> 2 then
-    raise exception 'Expected one unique claim per selected hour'; end if;
   if public.get_active_booking_hold(v_id)->>'id' <> v_id::text then
     raise exception 'Own hold lookup failed'; end if;
 
@@ -131,10 +129,6 @@ begin
     raise exception 'Another customer read someone else hold'; end if;
   if public.release_booking_hold(v_id)->>'status' <> 'not_found' then
     raise exception 'Another customer could release hold'; end if;
-  if (select count(*) from public.court_slot_claims where hold_id=v_id) <> 0 then
-    -- RLS hides claims, so this is tested again below as postgres.
-    null;
-  end if;
 end;
 $test$;
 reset role;
@@ -143,7 +137,7 @@ do $test$
 declare v_id uuid := current_setting('phase3.test_hold_id')::uuid;
 begin
   if (select count(*) from public.court_slot_claims where hold_id=v_id) <> 2 then
-    raise exception 'Other user release changed claims'; end if;
+    raise exception 'Hold claim count / other user isolation failed'; end if;
   if has_table_privilege('authenticated','public.court_slot_claims','INSERT') then
     raise exception 'Direct claim insert grant exists'; end if;
 end;
