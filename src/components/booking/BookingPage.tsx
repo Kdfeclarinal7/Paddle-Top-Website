@@ -6,6 +6,7 @@ import {
   calculatePrice,
   computeConsecutiveWindow,
   handleHourlySlotToggle,
+  parseTimeToMinutes,
   createBookingHold,
   getActiveBookingHold,
   releaseBookingHold,
@@ -174,8 +175,14 @@ export const BookingPage: React.FC<BookingPageProps> = ({
     setIsHoldBusy(true);
     setBookingNotice(null);
     try {
-      const window = computeConsecutiveWindow(selection.selectedTimes);
-      if (!window.startTime || !window.endTime) throw new Error('Select consecutive hours first.');
+      const sortedTimes = [...selection.selectedTimes].sort(
+        (a, b) => parseTimeToMinutes(a) - parseTimeToMinutes(b)
+      );
+      if (!sortedTimes.length || sortedTimes.some((time, i) => (
+        !/^([01]\d|2[0-3]):00$/.test(time)
+        || (i > 0 && parseTimeToMinutes(time) !== parseTimeToMinutes(sortedTimes[i - 1]) + 60)
+      ))) throw new Error('Select consecutive whole hours first.');
+      const window = computeConsecutiveWindow(sortedTimes);
       const hold = await createBookingHold({
         courtId: selection.courtId,
         date: selection.date,
@@ -451,7 +458,7 @@ export const BookingPage: React.FC<BookingPageProps> = ({
       {showAuthGate && currentDraft && (
         <AuthGateModal
           draft={currentDraft}
-          onClose={() => setShowAuthGate(false)}
+          onClose={() => { clearPendingBooking(); setShowAuthGate(false); }}
         />
       )}
     </div>
