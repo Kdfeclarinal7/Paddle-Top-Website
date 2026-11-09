@@ -1,0 +1,70 @@
+name: PADDLE TOP Phase 3 verification
+
+on:
+  push:
+    branches:
+      - feature/paddle-top-phase-3-booking-holds
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: phase3-temporary
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify Phase 1, Phase 2 and Phase 3 migrations and SQL assertions
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          cat <<'SQL' | docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres
+          create schema auth;
+          create table auth.users (id uuid primary key);
+          create function auth.uid()
+          returns uuid language sql stable
+          as 'select nullif(current_setting(''request.jwt.claim.sub'', true), '''')::uuid';
+          create role anon nologin;
+          create role authenticated nologin;
+          grant usage on schema auth to anon, authenticated;
+          SQL
+          for f in \
+            supabase/migrations/20261103160000_phase1_foundation.sql \
+            supabase/migrations/20261103183842_phase2_auth_foundation.sql \
+            supabase/migrations/20261109023000_phase3_booking_holds.sql \
+            supabase/tests/phase1_assertions.sql \
+            supabase/tests/phase2_auth_assertions.sql \
+            supabase/tests/phase3_holds_assertions.sql; do
+            docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$f"
+          done
+
+      - name: Concurrent transactions cannot double-book a court hour
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: bash supabase/tests/phase3_concurrency.sh
+
+      - name: TypeScript and production build
+        run: |
+          npm ci --no-audit --no-fund
+          npm run lint
+          npm run build
+
+      - name: Verify no Phase 3 payment or mock-hold wiring
+        run: |
+          ! grep -E 'createMockHold|getActiveMockHold|releaseActiveMockHold|createConfirmedMockBooking|MockPaymentModal' src/components/booking/BookingPage.tsx
+          ! grep -E 'service_role|SUPABASE_SECRET_KEY|SUPABASE_SERVICE_ROLE_KEY' src/lib/supabase.ts
