@@ -6,7 +6,10 @@ import {
   calculatePrice,
   computeConsecutiveWindow,
   handleHourlySlotToggle,
-  MOCK_HOURLY_RATE_PHP,
+  createBookingHold,
+  getActiveBookingHold,
+  releaseBookingHold,
+  type LiveBookingHold,
 } from '../../services/bookingService';
 import { getTodayString, addDays } from '../../utils/dateUtils';
 import { DateSelector } from './DateSelector';
@@ -14,6 +17,7 @@ import { DesktopScheduleGrid } from './DesktopScheduleGrid';
 import { MobileBookingFlow } from './MobileBookingFlow';
 import { BookingSummaryCard } from './BookingSummaryCard';
 import { AuthGateModal } from './AuthGateModal';
+import { ActiveHoldView } from './ActiveHoldView';
 import { useAuth } from '../../context/AuthContext';
 import {
   clearPendingBooking, readPendingBooking, savePendingBooking,
@@ -41,6 +45,15 @@ export const BookingPage: React.FC<BookingPageProps> = ({
   const [selectedTimes, setSelectedTimes] = useState<string[]>(persistedSelection?.selectedTimes ?? []);
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
   const [bookingNotice, setBookingNotice] = useState<string | null>(null);
+  const [activeHold, setActiveHold] = useState<LiveBookingHold | null>(null);
+  const [isHoldBusy, setIsHoldBusy] = useState(false);
+  const [hourlyRatePhp, setHourlyRatePhp] = useState<number | null>(null);
+  const [holdDurationMinutes, setHoldDurationMinutes] = useState<number | null>(null);
+  const [configured, setConfigured] = useState(false);
+  const [configurationMessage, setConfigurationMessage] = useState<string | null>(null);
+  const authResumeHandled = useRef(false);
+  const holdRequestInFlight = useRef(false);
+  const availabilityRequest = useRef(0);
 
   // Data / Async State
   const [schedules, setSchedules] = useState<CourtSchedule[]>([]);
@@ -60,33 +73,31 @@ export const BookingPage: React.FC<BookingPageProps> = ({
     setSelectionNotice(null);
   }, [initialCourtId]);
 
-  useEffect(() => {
-    if (!authLoading && user && readPendingBooking()) {
-      clearPendingBooking();
-      setShowAuthGate(false);
-    }
-  }, [authLoading, user?.id]);
-
-  // Load Availability for selectedDate
-  const loadAvailability = useCallback(async (opts?: { forceError?: boolean }) => {
+  // Live public RPC, with no mock fallback and no fabricated operating hours.
+  const loadAvailability = useCallback(async () => {
+    const request = ++availabilityRequest.current;
     setIsLoading(true);
     setError(null);
     try {
-      const data = await fetchCourtAvailability({
-        date: selectedDate,
-        simulateDelayMs: 250,
-        forceError: opts?.forceError,
-      });
-      setSchedules(data);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load availability');
+      const result = await fetchCourtAvailability(selectedDate);
+      if (request !== availabilityRequest.current) return;
+      setSchedules(result.schedules);
+      setConfigured(result.configured);
+      setConfigurationMessage(result.message);
+      setHourlyRatePhp(result.hourlyRatePhp);
+      setHoldDurationMinutes(result.holdDurationMinutes);
+    } catch (err) {
+      if (request !== availabilityRequest.current) return;
+      setError(err instanceof Error ? err.message : 'Failed to load availability');
+      setSchedules([]);
+      setConfigured(false);
     } finally {
-      setIsLoading(false);
+      if (request === availabilityRequest.current) setIsLoading(false);
     }
   }, [selectedDate]);
 
   useEffect(() => {
-    loadAvailability();
+    void loadAvailability();
   }, [loadAvailability]);
 
   // Validate current selection whenever schedules reload
@@ -108,11 +119,12 @@ export const BookingPage: React.FC<BookingPageProps> = ({
 
   // Build current draft selection from selected consecutive times
   const currentDraft: BookingDraft | null = useMemo(() => {
-    if (selectedTimes.length === 0) return null;
+    if (selectedTimes.length === 0 || hourlyRatePhp === null || !configured) return null;
     const courtSchedule = schedules.find((s) => s.courtId === selectedCourtId);
-    const courtName = courtSchedule?.courtName || 'Court 1';
+    if (!courtSchedule) return null;
+    const courtName = courtSchedule.courtName;
     const { startTime, endTime, displayTimeWindow, totalHours } = computeConsecutiveWindow(selectedTimes);
-    const priceEstimate = calculatePrice(totalHours);
+    const priceEstimate = calculatePrice(totalHours, hourlyRatePhp);
 
     return {
       courtId: selectedCourtId,
@@ -125,7 +137,7 @@ export const BookingPage: React.FC<BookingPageProps> = ({
       selectedTimes,
       priceEstimatePhp: priceEstimate,
     };
-  }, [selectedCourtId, selectedDate, selectedTimes, schedules]);
+  }, [selectedCourtId, selectedDate, selectedTimes, schedules, hourlyRatePhp, configured]);
 
   // Slot Selection Handler supporting consecutive hours, endpoint shrinking, and different court switching
   const handleSelectSlot = (courtId: CourtId, time: string) => {
@@ -154,10 +166,66 @@ export const BookingPage: React.FC<BookingPageProps> = ({
     setSelectionNotice(null);
   };
 
+  const requestHold = useCallback(async (selection: {
+    courtId: CourtId; date: string; selectedTimes: string[];
+  }) => {
+    if (holdRequestInFlight.current) return;
+    holdRequestInFlight.current = true;
+    setIsHoldBusy(true);
+    setBookingNotice(null);
+    try {
+      const window = computeConsecutiveWindow(selection.selectedTimes);
+      if (!window.startTime || !window.endTime) throw new Error('Select consecutive hours first.');
+      const hold = await createBookingHold({
+        courtId: selection.courtId,
+        date: selection.date,
+        startTime: window.startTime,
+        endTime: window.endTime,
+      });
+      setActiveHold(hold);
+      setSelectedTimes([]);
+      setShowAuthGate(false);
+      await loadAvailability();
+    } catch (err) {
+      setBookingNotice(err instanceof Error ? err.message : 'Unable to hold this court. Try again.');
+      await loadAvailability();
+    } finally {
+      holdRequestInFlight.current = false;
+      setIsHoldBusy(false);
+    }
+  }, [loadAvailability]);
+
+  // On OAuth return, resume the actual selected hours automatically.
+  // The saved selection is a convenience only: the RPC revalidates every slot.
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      authResumeHandled.current = false;
+      setActiveHold(null);
+      return;
+    }
+    if (authResumeHandled.current) return;
+    authResumeHandled.current = true;
+    const pending = readPendingBooking();
+    if (pending) {
+      clearPendingBooking();
+      setShowAuthGate(false);
+      void requestHold(pending);
+    } else {
+      void getActiveBookingHold().then(setActiveHold).catch((err: unknown) => {
+        setBookingNotice(err instanceof Error ? err.message : 'Unable to restore your hold.');
+      });
+    }
+  }, [authLoading, user?.id, requestHold]);
+
   const handleContinue = () => {
-    if (!currentDraft || authLoading) return;
+    if (!currentDraft || authLoading || isHoldBusy || activeHold) return;
     if (user) {
-      setBookingNotice('Online reservations are not available yet.');
+      void requestHold({
+        courtId: currentDraft.courtId,
+        date: currentDraft.date,
+        selectedTimes: currentDraft.selectedTimes,
+      });
       return;
     }
     savePendingBooking({
@@ -167,6 +235,39 @@ export const BookingPage: React.FC<BookingPageProps> = ({
     });
     setShowAuthGate(true);
   };
+
+  const handleReleaseHold = async () => {
+    if (!activeHold || isHoldBusy) return;
+    setIsHoldBusy(true);
+    setBookingNotice(null);
+    try {
+      const status = await releaseBookingHold(activeHold.id);
+      if (status === 'released' || status === 'expired' || status === 'not_found') {
+        setActiveHold(null);
+        await loadAvailability();
+      }
+    } catch (err) {
+      setBookingNotice(err instanceof Error ? err.message : 'Could not release this hold.');
+    } finally {
+      setIsHoldBusy(false);
+    }
+  };
+
+  const handleExpiredHold = useCallback(() => {
+    if (!activeHold) return;
+    void getActiveBookingHold(activeHold.id).then((hold) => {
+      if (!hold) {
+        setActiveHold(null);
+        setBookingNotice('Your temporary hold has expired. You can select another available time.');
+        void loadAvailability();
+      } else {
+        setActiveHold(hold);
+      }
+    }).catch(() => {
+      // The server is authoritative. Keep the hold visible until confirmed.
+      setBookingNotice('Could not verify hold expiry. Please retry your availability check.');
+    });
+  }, [activeHold?.id, loadAvailability]);
 
   const isAllFullyBooked = useMemo(() => {
     if (schedules.length === 0) return false;
@@ -205,9 +306,18 @@ export const BookingPage: React.FC<BookingPageProps> = ({
         </div>
 
         {bookingNotice && (
-          <p role="status" className="text-xs text-neutral-500 dark:text-neutral-400">
+          <p role="status" className="rounded-xl border border-amber-200 dark:border-amber-700/30 bg-amber-50 dark:bg-amber-900/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
             {bookingNotice}
           </p>
+        )}
+
+        {activeHold && (
+          <ActiveHoldView
+            hold={activeHold}
+            releasing={isHoldBusy}
+            onRelease={() => void handleReleaseHold()}
+            onExpired={handleExpiredHold}
+          />
         )}
 
             {/* Page Header */}
@@ -219,7 +329,7 @@ export const BookingPage: React.FC<BookingPageProps> = ({
                 Reserve Your Court
               </h1>
               <p className="text-sm sm:text-base text-neutral-600 dark:text-neutral-300 max-w-2xl">
-                Browse live open slots across Courts 1 through 4. Select a date, tap an available 1-hour slot, and tap adjacent hours to extend your reservation.
+                See available hourly slots across the courts. Select a date, tap an open hour, and add consecutive hours to request a temporary hold.
               </p>
             </div>
 
@@ -234,8 +344,14 @@ export const BookingPage: React.FC<BookingPageProps> = ({
             {/* Loading Skeleton */}
             {isLoading && !error && <BookingLoadingSkeleton />}
 
+            {!isLoading && !error && !configured && (
+              <div role="status" className="p-5 sm:p-6 rounded-2xl border border-neutral-200 dark:border-white/10 bg-white dark:bg-[#0E172A] text-sm text-neutral-600 dark:text-neutral-300">
+                {configurationMessage ?? 'Online booking is not configured yet.'}
+              </div>
+            )}
+
             {/* Loaded Content */}
-            {!isLoading && !error && (
+            {!isLoading && !error && configured && (
               <>
                 {/* Date Controls Row */}
                 <div className="bg-white dark:bg-[#0E172A] p-5 sm:p-6 rounded-2xl border border-neutral-200/80 dark:border-white/10 shadow-xs">
@@ -249,7 +365,11 @@ export const BookingPage: React.FC<BookingPageProps> = ({
                   />
                 </div>
 
-                {isAllFullyBooked ? (
+                {schedules.length === 0 ? (
+                  <div className="text-sm text-neutral-500 dark:text-neutral-400 p-5">
+                    No courts are currently enabled for online booking.
+                  </div>
+                ) : isAllFullyBooked ? (
                   <BookingEmptyState
                     date={selectedDate}
                     onChangeDate={() => setSelectedDate(addDays(selectedDate, 1))}
@@ -288,7 +408,8 @@ export const BookingPage: React.FC<BookingPageProps> = ({
                       <BookingSummaryCard
                         draft={currentDraft}
                         onContinue={handleContinue}
-                        isLoading={isLoading}
+                        isLoading={isLoading || isHoldBusy || Boolean(activeHold)}
+                        holdDurationMinutes={holdDurationMinutes}
                       />
                     </div>
                   </div>
@@ -297,7 +418,7 @@ export const BookingPage: React.FC<BookingPageProps> = ({
             )}
 
             {/* Mobile Bottom Sticky Bar (Visible when slots are selected on mobile) */}
-            {currentDraft && (
+            {currentDraft && !activeHold && (
               <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0E172A]/95 backdrop-blur-md border-t border-neutral-200 dark:border-white/10 p-4 shadow-xl">
                 <div className="flex items-center justify-between gap-4">
                   <div>
@@ -310,13 +431,14 @@ export const BookingPage: React.FC<BookingPageProps> = ({
                       {currentDraft.displayTimeWindow}
                     </div>
                     <div className="text-xs text-neutral-400">
-                      ₱{currentDraft.priceEstimatePhp} (Provisional ₱{MOCK_HOURLY_RATE_PHP}/hr)
+                      ₱{currentDraft.priceEstimatePhp} (₱{hourlyRatePhp}/hr · venue rate)
                     </div>
                   </div>
 
                   <button
                     type="button"
                     onClick={handleContinue}
+                    disabled={isHoldBusy || authLoading}
                     className="py-3 px-5 rounded-xl bg-[#84CC16] hover:bg-[#A3E635] text-[#0A1120] font-bold text-sm shadow-md transition-all active:scale-[0.98] cursor-pointer whitespace-nowrap"
                   >
                     Continue to Reserve
