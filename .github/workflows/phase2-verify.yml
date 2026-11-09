@@ -1,0 +1,64 @@
+name: PADDLE TOP Phase 2 verification
+
+on:
+  push:
+    branches:
+      - feature/paddle-top-phase-2-auth
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: phase2-temporary
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Apply Phase 1 and Phase 2 migrations to isolated Postgres
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          cat <<'SQL' | docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres
+          create schema auth;
+          create table auth.users (id uuid primary key);
+          create function auth.uid()
+          returns uuid language sql stable
+          as 'select nullif(current_setting(''request.jwt.claim.sub'', true), '''')::uuid';
+          create role anon nologin;
+          create role authenticated nologin;
+          grant usage on schema auth to anon, authenticated;
+          SQL
+          docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
+            < supabase/migrations/20261103160000_phase1_foundation.sql
+          docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
+            < supabase/migrations/20261103183842_phase2_auth_foundation.sql
+          docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
+            < supabase/tests/phase1_assertions.sql
+          docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
+            < supabase/tests/phase2_auth_assertions.sql
+
+      - name: Verify frontend TypeScript and build
+        run: |
+          npm ci --no-audit --no-fund
+          npm run lint
+          npm run build
+
+      - name: Check Phase 2 boundaries
+        run: |
+          ! grep -E 'createMockHold|createConfirmedMockBooking|MockPaymentModal' src/components/booking/BookingPage.tsx
+          ! grep -E 'service_role|SUPABASE_SECRET_KEY|SUPABASE_SERVICE_ROLE_KEY' src/lib/supabase.ts src/context/AuthContext.tsx

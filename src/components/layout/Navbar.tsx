@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sun, Moon, Menu, X, ArrowUpRight } from 'lucide-react';
+import { AccountMenu } from './AccountMenu';
 import { motion, useReducedMotion } from 'motion/react';
 import { Logo } from '../brand/Logo';
 import { useTheme } from '../../context/ThemeContext';
@@ -127,6 +128,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Zone 3: Primary Actions (Theme Toggle + Athletic Lime CTA) */}
             <div className="flex items-center gap-3 sm:gap-4">
+              <AccountMenu />
+
               {/* Theme Toggle */}
               <button
                 type="button"

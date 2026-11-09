@@ -10,7 +10,8 @@ import {
   UserPlus,
   ExternalLink,
   Sun,
-  Moon
+  Moon,
+  LogOut
 } from 'lucide-react';
 import { AdminViewTab } from '../../types/admin';
 import { Logo } from '../brand/Logo';
@@ -29,6 +30,7 @@ interface AdminLayoutProps {
   onNavigateHome: () => void;
   onNavigateBooking: () => void;
   onNavigatePaddles: () => void;
+  onSignOut: () => Promise<void>;
 }
 
 const navTabs = [
@@ -44,7 +46,8 @@ const navTabs = [
 export const AdminLayout: React.FC<AdminLayoutProps> = ({
   onNavigateHome,
   onNavigateBooking,
-  onNavigatePaddles
+  onNavigatePaddles,
+  onSignOut
 }) => {
   const { theme, toggleTheme } = useTheme();
 
@@ -169,6 +172,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 ) : (
                   <Moon size={16} strokeWidth={1.75} />
                 )}
+              </button>
+
+              {/* Sign out of the shared customer/owner session */}
+              <button
+                type="button"
+                onClick={() => void onSignOut()}
+                className="px-3 py-2 rounded-xl border border-neutral-200 dark:border-white/10 hover:bg-neutral-100 dark:hover:bg-white/5 text-xs font-semibold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5"
+                title="Sign out"
+                aria-label="Sign out"
+              >
+                <LogOut size={14} strokeWidth={1.75} />
+                <span className="hidden sm:inline">Sign out</span>
               </button>
 
               {/* Exit to Public Website */}
